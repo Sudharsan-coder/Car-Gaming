@@ -1,0 +1,21 @@
+body{
+  margin: 0;
+}
+.text{
+  position: absolute;
+  color: white;
+  top:45%;
+  left:45%;
+}
+canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+.buttons{
+  position: absolute;
+  bottom:10%;
+  left:45%;
+  display: flex;
+  gap:3em ;
+}
