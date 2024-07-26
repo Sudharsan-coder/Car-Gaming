@@ -5,7 +5,7 @@
     const [parked, setParked] = useState(false)
     return <>
     {parked && <div className="text"> Hurray the car is parked</div>}
-    <Three setParked={setParked}  parked={parked}/>
+    <Three setParked={setParked}/>
     </>
   }
 
