@@ -1,12 +1,21 @@
-  import { useState } from 'react'
-  import Three from './Three'
+import { useState } from "react";
+import Three from "./Three";
+import NavBar from "./NavBar";
+import { createContext, useContext } from 'react';
 
-  function App() {
-    const [parked, setParked] = useState(false)
-    return <>
-    {parked && <div className="text"> Hurray the car is parked</div>}
-    <Three setParked={setParked}/>
+export const currentCar = createContext(null);
+function App() {
+  const [parked, setParked] = useState(false);
+  const [option, setOption] = useState(1)
+  return (
+    <>
+    <currentCar.Provider value={{option,setOption}}>
+      <NavBar/>
+      {parked && <div className="text"> Hurray the car is parked</div>}
+      <Three setParked={setParked} />
+      </currentCar.Provider>
     </>
-  }
+  );
+}
 
-  export default App
+export default App;

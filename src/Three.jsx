@@ -1,11 +1,14 @@
 import * as THREE from "three";
-import React, { useEffect, useRef } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import moonImg from "./assets/Moon_texture.jpg";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { useState } from "react";
 import utils from "./utils.js";
 import DrawRectangle from "./DrawRectangle.js";
+import ReactangleBlock from "./RectangleBlock.js";
+import {CircularProgress} from "@nextui-org/react";
+import {currentCar} from './App.jsx'
 import { moonPosition, moonlightPosition, avaliableCarNames, rectWidth, rectHeight, acceleration, deceleration, maxSpeed, breakPower } from "./constants.js";
 function Three({ setParked }) {
   const [loading, setLoading] = useState(true);
@@ -16,8 +19,10 @@ function Three({ setParked }) {
   const moon = useRef(null);
   const clock = useRef(null);
   const velocity = useRef(null);
+  const block = useRef(null);
   const [cars, setCars] = useState({});
-  const [option, setOption] = useState(1);
+  const [carSize, setCarSize] = useState([])
+  const {option, setOption} = useContext(currentCar);
   const parkingRectangle = useRef(null);
   let moveForward = false;
   let moveBackward = false;
@@ -25,7 +30,6 @@ function Three({ setParked }) {
   let turnRight = false;
   let breakButton = false;
   let boost = false;
-  console.log(loading);
   const handleOnClick = (event) => {
     const newOption = Number(event.target.value);
     if (cars[option]) {
@@ -114,6 +118,11 @@ function Three({ setParked }) {
     velocity.current = new THREE.Vector3();
     // Rectangle
     parkingRectangle.current = new DrawRectangle(rectWidth, rectHeight, scene);
+    parkingRectangle.current.changePosition(10,2)
+
+    //Block
+    block.current=new ReactangleBlock(scene,2,4,4)
+    block.current.changePosition(20,null,null)
 
     // Moon
     const moonGeometry = new THREE.SphereGeometry(2, 30, 30);
@@ -160,6 +169,12 @@ function Three({ setParked }) {
                 car.castShadow = true;
                 car.receiveShadow = false;
                 cars[index + 1] = car;
+
+                const boundingBox = new THREE.Box3().setFromObject(car);
+                // Get the size of the bounding box
+                // const size = new THREE.Vector3();
+                // boundingBox.getSize(size);
+                carSize[index+1]=boundingBox
                 resolve();
               },
               function () {},
@@ -173,6 +188,7 @@ function Three({ setParked }) {
         })
       );
       setCars({ ...cars });
+      setCarSize({...carSize})
       setLoading(false);
     };
     getAllCarModels();
@@ -183,11 +199,13 @@ function Three({ setParked }) {
       window.removeEventListener("keyup", handleKeyUp);
     };
   }, []);
-
+console.log(carSize[option])
   useEffect(() => {
     if (cam.current && render.current && scenes.current) {
-      console.log("render");
-      console.log(cars);
+      for(const index in cars){
+      utils.removeObjectFromScene(cars[index], scenes.current); //removing the previous car
+      }
+
       if (cars[option]) {
         scenes.current.add(cars[option]);
       }
@@ -195,6 +213,7 @@ function Three({ setParked }) {
       const updateCarPosition = (delta) => {
         if (!cars[option]) return;
         const velocityValue = velocity.current;
+
         // Handle turning
         if (velocityValue.z != 0 && turnLeft) cars[option].rotation.y += 0.02;
         if (velocityValue.z != 0 && turnRight) cars[option].rotation.y -= 0.02;
@@ -227,11 +246,21 @@ function Three({ setParked }) {
         velocityValue.z = Math.max(-maxSpeed, Math.min(maxSpeed, velocityValue.z));
 
         // Update car position
-        cars[option].translateZ(velocityValue.z * delta);
+        const boundingBox = new THREE.Box3().setFromObject(cars[option]);
+        if(block.current.checkCollided(boundingBox)){
+          // cars[option].translateZ(velocityValue.z -1);
+          velocityValue.z = -0.5
+        }
+        //  else
+          cars[option].translateZ(velocityValue.z * delta);
+        // cam.current.translateX(velocityValue.z*delta)
+        // // Check if the car is parked
+        // const carLocation = cars[option].position;
+        // const carHalfHeight=carSize[option].x/2;
+        // const carHalfWidth=carSize[option].z/2;
 
-        // Check if the car is parked
-        const carLocation = cars[option].position;
-        if (parkingRectangle.current?.checkPositionIsInside(carLocation.x, carLocation.z)) {
+        // if (parkingRectangle.current?.checkPositionIsInside(carLocation.x+carHalfHeight, carLocation.z+carHalfWidth,carLocation.x-carHalfHeight,carLocation.z-carHalfWidth)) {
+        if(parkingRectangle.current.checkCollided(boundingBox)){
           setParked(true);
           if (parkingRectangle.current) {
             parkingRectangle.current.changeColor(0xff0000);
@@ -258,25 +287,14 @@ function Three({ setParked }) {
       render.current.setAnimationLoop(animate);
     }
   }, [option, loading]);
+
   return (
     <>
       <canvas ref={refContainer}></canvas>
-      {loading ? (
-        <div className="buttons">"Loading"</div>
-      ) : (
-        <>
-          <div className="buttons">
-            <button value="1" onClick={handleOnClick}>
-              1
-            </button>
-            <button value="2" onClick={handleOnClick}>
-              2
-            </button>
-            <button value="3" onClick={handleOnClick}>
-              3
-            </button>
-          </div>
-        </>
+      {loading && (
+         <CircularProgress style={{zIndex:100,  position: 'absolute',
+          bottom:'10%',
+          left:'45%'}} aria-label="Loading..." />
       )}
     </>
   );

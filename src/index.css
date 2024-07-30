@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;  
+
 body{
   margin: 0;
 }
@@ -8,6 +12,8 @@ body{
   left:45%;
 }
 canvas {
+  position: fixed;
+  top:0;
   width: 100vw;
   height: 100vh;
   display: block;
@@ -19,3 +25,13 @@ canvas {
   display: flex;
   gap:3em ;
 }
+
+.cars-container{
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  /* background-color: aqua; */
+}
+/* button{
+border: 10px solid black;
+} */
