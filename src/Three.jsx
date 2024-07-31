@@ -1,109 +1,49 @@
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { CircularProgress } from "@nextui-org/react";
+import { currentCar } from "./App.jsx";
+
 import * as THREE from "three";
-import React, { useContext, useEffect, useRef } from "react";
-import moonImg from "./assets/Moon_texture.jpg";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { useState } from "react";
 import utils from "./utils.js";
+import moonImg from "./assets/Moon_texture.jpg";
 import DrawRectangle from "./DrawRectangle.js";
-import ReactangleBlock from "./RectangleBlock.js";
-import {CircularProgress} from "@nextui-org/react";
-import {currentCar} from './App.jsx'
-import { moonPosition, moonlightPosition, avaliableCarNames, rectWidth, rectHeight, acceleration, deceleration, maxSpeed, breakPower } from "./constants.js";
+import BlockModel from "./BlockModels.js";
+import CarMovement from "./CarMovement.js";
+import { moonPosition, initalCameraPosition, moonlightPosition, avaliableCarNames, rectWidth, rectHeight } from "./constants.js";
+
 function Three({ setParked }) {
   const [loading, setLoading] = useState(true);
-  const refContainer = useRef(null);
+  const canvasRef = useRef(null);
   const scenes = useRef(null);
-  const render = useRef(null);
   const cam = useRef(null);
-  const moon = useRef(null);
   const clock = useRef(null);
   const velocity = useRef(null);
-  const block = useRef(null);
-  const [cars, setCars] = useState({});
-  const [carSize, setCarSize] = useState([])
-  const {option, setOption} = useContext(currentCar);
+  const block = useRef([]);
+  const [cars, setCars] = useState([]);
+  const selectedCar=useRef(null)
+  const { option } = useContext(currentCar);
   const parkingRectangle = useRef(null);
-  let moveForward = false;
-  let moveBackward = false;
-  let turnLeft = false;
-  let turnRight = false;
-  let breakButton = false;
-  let boost = false;
-  const handleOnClick = (event) => {
-    const newOption = Number(event.target.value);
-    if (cars[option]) {
-      utils.removeObjectFromScene(cars[option], scenes.current); //removing the previous car
-    }
-    setOption(newOption);
-  };
-  const handleKeyDown = (event) => {
-    switch (event.key) {
-      case "ArrowDown":
-        moveBackward = true;
-        break;
-      case "ArrowUp":
-        moveForward = true;
-        break;
-      case "ArrowLeft":
-        turnLeft = true;
-        break;
-      case "ArrowRight":
-        turnRight = true;
-        break;
-      case " ":
-        breakButton = true;
-        break;
-      case "Shift":
-        boost = true;
-      default:
-        break;
-    }
-  };
-
-  const handleKeyUp = (event) => {
-    switch (event.key) {
-      case "ArrowDown":
-        moveBackward = false;
-        break;
-      case "ArrowUp":
-        moveForward = false;
-        break;
-      case "ArrowLeft":
-        turnLeft = false;
-        break;
-      case "ArrowRight":
-        turnRight = false;
-        break;
-      case " ":
-        breakButton = false;
-        break;
-      case "Shift":
-        boost = false;
-      default:
-        break;
-    }
-  };
-
-  window.addEventListener("keydown", handleKeyDown);
-  window.addEventListener("keyup", handleKeyUp);
+  const control=useRef(null)
+  const carMovement = useRef(new CarMovement());
 
   useEffect(() => {
     // Boilerplate
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb); // Light sky blue color
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ canvas: refContainer.current });
+    const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    const controls = new OrbitControls(camera, refContainer.current);
+    const controls = new OrbitControls(camera, canvasRef.current);
     controls.enableDamping = true; // Enable smooth damping
     controls.dampingFactor = 0.05; // Set damping factor
     controls.maxPolarAngle = Math.PI / 2; //To not rotate under the plane
+    controls.minPolarAngle = 0;
+    controls.enableZoom = true; // Allow zooming in and out
+    controls.enablePan = true;
     scenes.current = scene;
-    render.current = renderer;
     cam.current = camera;
-
+    control.current=controls
     // Ground plane
     const planeGeometry = new THREE.PlaneGeometry(200, 200);
     const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 }); // Gray
@@ -118,20 +58,15 @@ function Three({ setParked }) {
     velocity.current = new THREE.Vector3();
     // Rectangle
     parkingRectangle.current = new DrawRectangle(rectWidth, rectHeight, scene);
-    parkingRectangle.current.changePosition(10,2)
-
-    //Block
-    block.current=new ReactangleBlock(scene,2,4,4)
-    block.current.changePosition(20,null,null)
-
+    parkingRectangle.current.changePosition(10, 2);
+    
     // Moon
     const moonGeometry = new THREE.SphereGeometry(2, 30, 30);
     const moonText = new THREE.TextureLoader().load(moonImg);
     const moonMaterial = new THREE.MeshStandardMaterial({ map: moonText });
-    const moonModel = new THREE.Mesh(moonGeometry, moonMaterial);
-    moonModel.position.set(...moonPosition);
-    scenes.current.add(moonModel);
-    moon.current = moonModel;
+    const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+    moon.position.set(...moonPosition);
+    scene.add(moon);
 
     // Light
     const light = new THREE.PointLight(0xffffff, 700, 1000); // White light with full intensity, range of 100, decay of 2
@@ -142,9 +77,9 @@ function Three({ setParked }) {
     light.shadow.mapSize.height = 512; // Default is 512
     light.shadow.camera.near = 0.5; // Default is 0.5
     light.shadow.camera.far = 500; // Default is 500
-
-    scenes.current.add(light);
-
+    
+    scene.add(light);
+    
     //light helper
     // const lightHelperGeometry = new THREE.SphereGeometry(0.2, 16, 16);
     // const lightHelperMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red color
@@ -152,150 +87,70 @@ function Three({ setParked }) {
     // lightHelper.position.copy(light.position); // Position the dot at the light's position
     // scene.add(lightHelper);
     // const shadowHelper = new THREE.CameraHelper(light.shadow.camera);
-    // scene.add(shadowHelper  )
-
+    // scene.add(shadowHelper)
+    
     //car models
-    const loader = new GLTFLoader();
     const getAllCarModels = async () => {
-      await Promise.all(
+      let j=0;
+      for(let i=10;i<60;i+=10){
+      block.current[j] = new BlockModel(scene,"phone_both.glb",i,-2,-i);
+      await block.current[j++].init()
+      }
+      const cars = await Promise.all(
         avaliableCarNames.map((item, index) => {
-          return new Promise((resolve, reject) =>
-            loader.load(
-              item,
-              function (gltf) {
-                const car = gltf.scene;
-                car.position.y = -2;
-                car.rotation.y = -4.75;
-                car.castShadow = true;
-                car.receiveShadow = false;
-                cars[index + 1] = car;
-
-                const boundingBox = new THREE.Box3().setFromObject(car);
-                // Get the size of the bounding box
-                // const size = new THREE.Vector3();
-                // boundingBox.getSize(size);
-                carSize[index+1]=boundingBox
-                resolve();
-              },
-              function () {},
-              function (error) {
-                console.log(error);
-                console.log(item);
-                reject();
-              }
-            )
-          );
+          return new Promise(async (resolve, reject) => {
+            const car = await utils.loadModel(item);
+            car.position.y = -2;
+            car.rotation.y = -4.75;
+            resolve(car);
+          });
         })
       );
-      setCars({ ...cars });
-      setCarSize({...carSize})
+      setCars([...cars]);
       setLoading(false);
     };
+
     getAllCarModels();
-    camera.position.set(0, 5, 18);
+    function animate() {
+      const delta = clock.current.getDelta(); // Time elapsed since the last frame
+      carMovement.current.updateCarPosition(delta, selectedCar.current, velocity.current, parkingRectangle.current, block.current, cam.current, setParked);
+      moon.rotation.x += 0.01;
+      moon.rotation.y += 0.01;
+      renderer.render(scenes.current, cam.current);
+    }
+    renderer.setAnimationLoop(animate);
+    camera.position.set(...initalCameraPosition);
     return () => {
       renderer.dispose();
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
     };
   }, []);
-console.log(carSize[option])
+
   useEffect(() => {
-    if (cam.current && render.current && scenes.current) {
-      for(const index in cars){
-      utils.removeObjectFromScene(cars[index], scenes.current); //removing the previous car
-      }
-
-      if (cars[option]) {
-        scenes.current.add(cars[option]);
-      }
-
-      const updateCarPosition = (delta) => {
-        if (!cars[option]) return;
-        const velocityValue = velocity.current;
-
-        // Handle turning
-        if (velocityValue.z != 0 && turnLeft) cars[option].rotation.y += 0.02;
-        if (velocityValue.z != 0 && turnRight) cars[option].rotation.y -= 0.02;
-
-        // Handle forward/backward movement
-        if (moveForward) {
-          if (boost) velocityValue.z += 2 * acceleration * delta;
-          else velocityValue.z += acceleration * delta;
+    if (cam.current && scenes.current) {
+      let previousCarPosition = null;
+      let previousCarRotation = null;
+      for (const index in cars) {
+        if (scenes.current.children.includes(cars[index])) {
+          previousCarPosition = cars[index].position.clone();
+          previousCarRotation = cars[index].rotation.clone(); // Clone the rotation vector to avoid reference issues
+          utils.removeObjectFromScene(cars[index], scenes.current);
         }
-        if (moveBackward) {
-          velocityValue.z -= acceleration * delta;
-        }
+      } // Removing the previous car
 
-        // Apply deceleration
-        if (breakButton) {
-          if (velocityValue.z > 0) {
-            velocityValue.z = Math.max(velocityValue.z - breakPower * deceleration * delta, 0);
-          } else {
-            velocityValue.z = Math.min(velocityValue.z + breakPower * deceleration * delta, 0);
-          }
-        } else if (!moveForward && !moveBackward) {
-          if (velocityValue.z > 0) {
-            velocityValue.z = Math.max(velocityValue.z - deceleration * delta, 0);
-          } else {
-            velocityValue.z = Math.min(velocityValue.z + deceleration * delta, 0);
-          }
-        }
+      scenes.current.add(cars[option]);
+      if (previousCarPosition && previousCarRotation) {
+        cars[option].position.copy(previousCarPosition);
+        cars[option].rotation.copy(previousCarRotation);
+      } // Adding the current car
 
-        // Limiting speed
-        velocityValue.z = Math.max(-maxSpeed, Math.min(maxSpeed, velocityValue.z));
-
-        // Update car position
-        const boundingBox = new THREE.Box3().setFromObject(cars[option]);
-        if(block.current.checkCollided(boundingBox)){
-          // cars[option].translateZ(velocityValue.z -1);
-          velocityValue.z = -0.5
-        }
-        //  else
-          cars[option].translateZ(velocityValue.z * delta);
-        // cam.current.translateX(velocityValue.z*delta)
-        // // Check if the car is parked
-        // const carLocation = cars[option].position;
-        // const carHalfHeight=carSize[option].x/2;
-        // const carHalfWidth=carSize[option].z/2;
-
-        // if (parkingRectangle.current?.checkPositionIsInside(carLocation.x+carHalfHeight, carLocation.z+carHalfWidth,carLocation.x-carHalfHeight,carLocation.z-carHalfWidth)) {
-        if(parkingRectangle.current.checkCollided(boundingBox)){
-          setParked(true);
-          if (parkingRectangle.current) {
-            parkingRectangle.current.changeColor(0xff0000);
-            parkingRectangle.current.changePosition(null, -1, null);
-            parkingRectangle.current.changeRotation(0.1, null, null);
-          }
-        } else {
-          setParked(false);
-          if (parkingRectangle.current) {
-            parkingRectangle.current.changeColor(0xffffff);
-            parkingRectangle.current.changePosition(null, -1.99, null);
-            parkingRectangle.current.changeRotation(0, null, null);
-          }
-        }
-      };
-
-      function animate() {
-        const delta = clock.current.getDelta(); // Time elapsed since the last frame
-        updateCarPosition(delta);
-        moon.current.rotation.x += 0.01;
-        moon.current.rotation.y += 0.01;
-        render.current.render(scenes.current, cam.current);
-      }
-      render.current.setAnimationLoop(animate);
+      selectedCar.current=cars[option]
     }
   }, [option, loading]);
 
   return (
     <>
-      <canvas ref={refContainer}></canvas>
-      {loading && (
-         <CircularProgress style={{zIndex:100,  position: 'absolute',
-          bottom:'10%',
-          left:'45%'}} aria-label="Loading..." />
-      )}
+      <canvas style={{display:loading?"none":""}} ref={canvasRef}></canvas>
+      {loading && <CircularProgress style={{ zIndex: 100, position: "absolute", bottom: "45%", left: "45%" }} aria-label="Loading..." />}
     </>
   );
 }

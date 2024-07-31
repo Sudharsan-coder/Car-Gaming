@@ -1,3 +1,7 @@
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const loader = new GLTFLoader();
+
 export default {
   removeObjectFromScene: (property, scene) => {
     scene.remove(property);
@@ -8,5 +12,22 @@ export default {
       }
     });
   },
+  loadModel(path){
+    return new Promise((resolve, reject) =>
+      loader.load(
+        path,
+        function (gltf) {
+          const car = gltf.scene;
+          resolve(car);
+        },
+        function () {},
+        function (error) {
+          console.log(error);
+          console.log(path);
+          reject();
+        }
+      )
+    );
+  }
 };
 

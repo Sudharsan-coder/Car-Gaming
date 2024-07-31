@@ -6,7 +6,7 @@ import { createContext, useContext } from 'react';
 export const currentCar = createContext(null);
 function App() {
   const [parked, setParked] = useState(false);
-  const [option, setOption] = useState(1)
+  const [option, setOption] = useState(0)
   return (
     <>
     <currentCar.Provider value={{option,setOption}}>
